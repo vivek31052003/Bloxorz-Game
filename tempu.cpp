@@ -57,10 +57,10 @@ bool sideLightsEnabled = false;
 
 // Function to toggle light sources
 void toggleLightSources(int key) {
-    if (key == GLFW_KEY_KP_1) {
+    if (key == GLFW_KEY_0) {
         topLightEnabled = true;
         sideLightsEnabled = false;
-    } else if (key == GLFW_KEY_KP_2) {
+    } else if (key == GLFW_KEY_1) {
         topLightEnabled = false;
         sideLightsEnabled = true;
     }
@@ -389,17 +389,17 @@ void reshapeWindow ( GLFWwindow* window, int width, int height )
     int fbwidth=width, fbheight=height;
     glfwGetFramebufferSize( window, &fbwidth, &fbheight );
 
-    GLfloat fov = M_PI/4;
+    GLfloat fov = M_PI/2;
 
     // sets the viewport of openGL renderer
     glViewport ( 0, 0, (GLsizei) fbwidth, (GLsizei) fbheight );
 
     // Store the projection matrix in a variable for future use
     // Perspective projection for 3D views
- Matrices.projectionP = glm::perspective ( fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f );
+    Matrices.projectionP = glm::perspective ( fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f );
 
- // Ortho projection for 2D views
- Matrices.projectionO = glm::ortho ( -4.0f, 4.0f, -4.0f, 4.0f, 0.1f, 500.0f );
+    // Ortho projection for 2D views
+    Matrices.projectionO = glm::ortho ( -4.0f, 4.0f, -4.0f, 4.0f, 0.1f, 500.0f );
 }
 float yellow_r = 1.0f;
     float yellow_g = 1.0f;
@@ -1599,41 +1599,41 @@ int checkBlock ( )
 
 void Viewer ( )
 {
- switch ( views ) {
- case 0:
- //Block
- perspective = 1;
- eye = glm::vec3 ( Block.x_ordinate - 1, 1, Block.z_ordinate - 1);
- target = glm::vec3 ( 5 , 0.1, 5 ) ;
- break;
- case 1:
- //Top
- perspective = 1;
- eye = glm::vec3 (Block.x_ordinate, 3, Block.z_ordinate);
- target = glm::vec3 ( Block.x_ordinate + 0.3, 0, Block.z_ordinate);
- break;
- case 2:
- //Follow
- perspective = 1;
- eye = glm::vec3 ( Block.x_ordinate - 0.6, Block.height + 1, Block.z_ordinate );
- target = glm::vec3 ( Block.x_ordinate + 0.6, 0.1, Block.z_ordinate + 0.6); 
- break;
- case 3:
- //Helicopter
- perspective = 0;
- eye = glm::vec3 ( 4*cos((float)camera_rotation_angle*M_PI/180.0f), 4, 4*sin((float)camera_rotation_angle*M_PI/180.0f) );
- target = glm::vec3 ( 0, 0, 0 );
- break;
- case 4:
- //Tower
- perspective = 0;
- eye = glm::vec3 ( 3*cos((float)camera_rotation_angle*M_PI/180.0f), 2, 3*sin((float)camera_rotation_angle*M_PI/180.0f) );
- target = glm::vec3 ( 0, 0, 0 );
- break;
- default:
- //Nothing
- break;
- }
+    switch ( views ) {
+            case 0:
+                //Block
+                perspective = 1;
+                eye = glm::vec3 ( Block.x_ordinate - 1, 1, Block.z_ordinate - 1);
+                target = glm::vec3 ( 5 , 0.1, 5 ) ;
+                break;
+            case 1:
+                //Top
+                perspective = 1;
+                eye = glm::vec3 (Block.x_ordinate, 3, Block.z_ordinate);
+                target = glm::vec3 ( Block.x_ordinate + 0.3, 0, Block.z_ordinate);
+                break;
+            case 2:
+                //Follow
+                perspective = 1;
+                eye = glm::vec3 ( Block.x_ordinate - 0.6, Block.height + 1, Block.z_ordinate );
+                target = glm::vec3 ( Block.x_ordinate + 0.6, 0.1, Block.z_ordinate + 0.6); 
+                break;
+            case 3:
+                //Helicopter
+                perspective = 0;
+                eye = glm::vec3 ( 4*cos((float)camera_rotation_angle*M_PI/180.0f), 4,  4*sin((float)camera_rotation_angle*M_PI/180.0f) );
+                target = glm::vec3 ( 0, 0, 0 );
+                break;
+            case 4:
+                //Tower
+                perspective = 0;
+                eye = glm::vec3 ( 3*cos((float)camera_rotation_angle*M_PI/180.0f), 2,  3*sin((float)camera_rotation_angle*M_PI/180.0f) );
+                target =  glm::vec3 ( 0, 0, 0 );
+                break;
+            default:
+                //Nothing
+                break;
+        }
 
 }
 void reset ( )
@@ -1809,16 +1809,16 @@ GLFWwindow* initGLFW ( int width, int height )
 void initGL(GLFWwindow* window, int width, int height) {
     // Enable lighting
     light();
-    // glEnable(GL_LIGHTING);
-    // glEnable(GL_LIGHT0); // Enable light source 0
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0); // Enable light source 0
 
     // Set light position
-    // GLfloat light_position[] = { 0.0, 10.0, 0.0, 1.0 }; // Positional light (above the scene)
-    // glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    GLfloat light_position[] = { 0.0, 10.0, 0.0, 1.0 }; // Positional light (above the scene)
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
     // Set light color (Blue)
-    // GLfloat light_color[] = { 0.0, 0.0, 1.0, 1.0 }; // Blue light
-    // glLightfv(GL_LIGHT0, GL_DIFFUSE, light_color);
+    GLfloat light_color[] = { 0.0, 0.0, 1.0, 1.0 }; // Blue light
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_color);
 
     // Set material properties
     GLfloat material_ambient[] = { 0.3, 0.3, 0.3, 1.0 }; // Ambient color

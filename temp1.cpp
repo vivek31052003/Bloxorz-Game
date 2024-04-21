@@ -6,7 +6,7 @@
 #include <GL/glew.h>
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
-
+#include "imageio.h"
 #define GLM_FORCE_RADIANS
 #include <glm/glm.hpp>
 #include <glm/gtx/transform.hpp>
@@ -52,8 +52,54 @@ glm::vec3 tri_pos, rect_pos;
 int last = -1;
 int last_1=-1;
 /* Function to load Shaders - Use it as it is */
-bool topLightEnabled = false;
+bool topLightEnabled = true;
 bool sideLightsEnabled = false;
+double rotate_x = 0, rotate_y = 0, zoom = 1;
+
+unsigned char *image;
+int width, height, bpp;
+
+int texImageWidth;
+int texImageHeight;
+GLubyte *makeTexImage(char *file){
+	int width, height;
+	GLubyte *texImage;
+	texImage = loadImageRGBA((char*) file, &width, &height);	
+	texImageWidth = width;
+	texImageHeight = height;
+	return texImage;
+}
+
+
+GLfloat front_left_light_position[] = {-1.0, 0.0, 1.0, 0.0};
+GLfloat front_right_light_position[] = {1.0, 0.0, 1.0, 0.0};
+GLfloat back_left_light_position[] = {-1.0, 0.0, -1.0, 0.0};
+GLfloat back_right_light_position[] = {1.0, 0.0, -1.0, 0.0};
+
+// Defining material properties
+// ref. https://www.opengl.org/archives/resources/code/samples/glut_examples/examples/lightlab.c
+GLfloat brass_ambient[] =
+{0.33, 0.22, 0.03, 1.0}, brass_diffuse[] =
+{0.78, 0.57, 0.11, 1.0}, brass_specular[] =
+{0.99, 0.91, 0.81, 1.0}, brass_shininess = 27.8;
+
+GLfloat red_plastic_ambient[] =
+{0.0, 0.0, 0.0}, red_plastic_diffuse[] =
+{0.5, 0.0, 0.0}, red_plastic_specular[] =
+{0.7, 0.6, 0.6}, red_plastic_shininess = 32.0;
+
+GLfloat emerald_ambient[] =
+{0.0215, 0.1745, 0.0215}, emerald_diffuse[] =
+{0.07568, 0.61424, 0.07568}, emerald_specular[] =
+{0.633, 0.727811, 0.633}, emerald_shininess = 76.8;
+
+GLfloat slate_ambient[] =
+{0.02, 0.02, 0.02}, slate_diffuse[] =
+{0.02, 0.01, 0.01}, slate_specular[] =
+{0.4, 0.4, 0.4}, slate_shininess = .78125;
+
+float diffuse_intensity = 0.5;
+int select_material = 0;
 
 // Function to toggle light sources
 void toggleLightSources(int key) {
@@ -65,6 +111,8 @@ void toggleLightSources(int key) {
         sideLightsEnabled = true;
     }
 }
+float textureRepeat = 1.0f; // Adjust as needed
+GLfloat color[] = {1.0f, 0.0f, 0.0f};
 void light()
 {
 
@@ -389,17 +437,17 @@ void reshapeWindow ( GLFWwindow* window, int width, int height )
     int fbwidth=width, fbheight=height;
     glfwGetFramebufferSize( window, &fbwidth, &fbheight );
 
-    GLfloat fov = M_PI/4;
+    GLfloat fov = M_PI/2;
 
     // sets the viewport of openGL renderer
     glViewport ( 0, 0, (GLsizei) fbwidth, (GLsizei) fbheight );
 
     // Store the projection matrix in a variable for future use
     // Perspective projection for 3D views
- Matrices.projectionP = glm::perspective ( fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f );
+    Matrices.projectionP = glm::perspective ( fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f );
 
- // Ortho projection for 2D views
- Matrices.projectionO = glm::ortho ( -4.0f, 4.0f, -4.0f, 4.0f, 0.1f, 500.0f );
+    // Ortho projection for 2D views
+    Matrices.projectionO = glm::ortho ( -4.0f, 4.0f, -4.0f, 4.0f, 0.1f, 500.0f );
 }
 float yellow_r = 1.0f;
     float yellow_g = 1.0f;
@@ -427,7 +475,7 @@ GLfloat *createColor ( float r1, float g1, float b1,
     return color_buffer_data;
 }
 
-VAO *createCell ( float l, float b, float h, GLfloat Color [ ] )
+VAO *createCell ( float l, float b, float h, GLfloat Color [ ] ,float textureRepeat)
 {
     GLfloat vertex_buffer_data [ ] = {
         0, 0, 0, b, 0, 0, b, h, 0, b, h, 0, 0, h, 0, 0, 0 , 0,        //1
@@ -438,8 +486,78 @@ VAO *createCell ( float l, float b, float h, GLfloat Color [ ] )
         b, 0, l, b, 0, 0, b, h, 0, b, h, 0, b, h, l, b, 0, l,            //5
         0, h, l, b, h, l, b, h, 0, b, h, 0, 0, h, 0, 0, h, l         //6
     };
+     GLfloat texture_coords[] = {
+        // Front face
+        0, 0, // 0
+        textureRepeat, 0, // 1
+        textureRepeat, textureRepeat, // 2
+        textureRepeat, textureRepeat, // 2
+        0, textureRepeat, // 3
+        0, 0, // 0
 
-    return create3DObject ( GL_TRIANGLES, 36, vertex_buffer_data, Color, GL_FILL );
+        // Back face
+        0, 0, // 4
+        textureRepeat, 0, // 5
+        textureRepeat, textureRepeat, // 6
+        textureRepeat, textureRepeat, // 6
+        0, textureRepeat, // 7
+        0, 0, // 4
+
+        0, 0, // 4
+        textureRepeat, 0, // 5
+        textureRepeat, textureRepeat, // 6
+        textureRepeat, textureRepeat, // 6
+        0, textureRepeat, // 7
+        0, 0, // 4
+
+        0, 0, // 4
+        textureRepeat, 0, // 5
+        textureRepeat, textureRepeat, // 6
+        textureRepeat, textureRepeat, // 6
+        0, textureRepeat, // 7
+        0, 0, // 4
+
+        0, 0, // 4
+        textureRepeat, 0, // 5
+        textureRepeat, textureRepeat, // 6
+        textureRepeat, textureRepeat, // 6
+        0, textureRepeat, // 7
+        0, 0, // 4
+
+        0, 0, // 4
+        textureRepeat, 0, // 5
+        textureRepeat, textureRepeat, // 6
+        textureRepeat, textureRepeat, // 6
+        0, textureRepeat, // 7
+        0, 0 // 4
+
+        // Repeat for other faces...
+    };
+GLfloat combined_buffer_data[6 * 6 * 2]; // 6 vertices per face, 6 faces, 2 values (x, y) per vertex
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j < 6; ++j) {
+            combined_buffer_data[i * 6 + j] = vertex_buffer_data[i * 3 + j % 3];
+            combined_buffer_data[i * 6 + j + 6] = texture_coords[i * 2 + j % 2];
+        }
+    }
+
+    // Create VAO using the combined buffer data
+    VAO *cellObject = create3DObject(GL_TRIANGLES, 36, combined_buffer_data, Color, GL_FILL);
+
+    // Enable texture mapping
+    glEnable(GL_TEXTURE_2D);
+
+    // Bind the texture
+    unsigned int texture;
+	glGenTextures(1, &texture);
+	GLubyte *texImage = makeTexImage((char*)"color.png");
+	// if ( !texImage ) {
+	// 	printf("\nError reading image \n");
+	// 	return;
+	// }
+    glBindTexture(GL_TEXTURE_2D, texture); // Replace textureID with your texture ID
+
+    return cellObject;
 }
 
 class GraphicalObject
@@ -731,181 +849,93 @@ VAO *axes,
 GraphicalObject Block, 
                             Board[20][20];
 
-// void Background ( ) 
-// {   
-//     GLfloat vertex_buffer_data [ ] = {
-//         6,6,-6,
-//         -6,6,-6,
-//         -6,-6,-6,
+void Background ( ) 
+{   
+    GLfloat vertex_buffer_data [ ] = {
+        6,6,-6,
+        -6,6,-6,
+        -6,-6,-6,
 
-//         -6,-6,-6,
-//         6,-6,-6,
-//         6,6,-6,
+        -6,-6,-6,
+        6,-6,-6,
+        6,6,-6,
 
-//         6,-6,-6,
-//         -6,-6,-6,
-//         -6,-6,6,
+        6,-6,-6,
+        -6,-6,-6,
+        -6,-6,6,
 
-//         -6,-6,6,
-//         6,-6,6,
-//         6,-6,-6,
+        -6,-6,6,
+        6,-6,6,
+        6,-6,-6,
 
-//         -6,-6,-6,
-//         -6,6,-6,
-//         -6,6,6,
+        -6,-6,-6,
+        -6,6,-6,
+        -6,6,6,
 
-//         -6,6,6,
-//         -6,-6,6,
-//         -6,-6,-6,
+        -6,6,6,
+        -6,-6,6,
+        -6,-6,-6,
 
-//         6,-6,-6,
-//         6,6,-6,
-//         6,6,6,
+        6,-6,-6,
+        6,6,-6,
+        6,6,6,
 
-//         6,6,6,
-//         6,-6,6,
-//         6,-6,-6,
+        6,6,6,
+        6,-6,6,
+        6,-6,-6,
 
-//         6,6,6,
-//         -6,6,6,
-//         -6,-6,6,
+        6,6,6,
+        -6,6,6,
+        -6,-6,6,
 
-//         -6,-6,6,
-//         6,-6,6,
-//         6,6,6
-//     };
-//     GLfloat color_buffer_data [ ] = {
-//         0,0,0,
-//         0,0,0,
-//         0.6,0.6,1,
-
-//         0.6,0.6,1,
-//         1, 0.6, 0.8,
-//         0,0,0,
-
-//         1, 0.6, 0.8,
-//         0.6,0.6,1,
-//         1,1,1,
-
-//         1,1,1,
-//         1,1,1,
-//         1, 0.6, 0.8,
-
-//         0.6,0.6,1,
-//         0,0,0,
-//         1,1,1,
-
-//         1,1,1,
-//         1,1,1,
-//         0.6,0.6,1,
-
-//         1, 0.6, 0.8,
-//         0,0,0,
-//         1,1,1,
-
-//         1,1,1,
-//         1,1,1,
-//         1, 0.6, 0.8,
-
-//         1,1,1,
-//         1,1,1,
-//         1,1,1,
-
-//         1,1,1,
-//         1,1,1,
-//         1,1,1
-
-//     };
-//     background = create3DObject ( GL_TRIANGLES, 30, vertex_buffer_data, color_buffer_data, GL_FILL );
-// }
-void Background() {
-    GLfloat vertex_buffer_data[] = {
-        6, 6, -6,
-        -6, 6, -6,
-        -6, -6, -6,
-
-        -6, -6, -6,
-        6, -6, -6,
-        6, 6, -6,
-
-        6, -6, -6,
-        -6, -6, -6,
-        -6, -6, 6,
-
-        -6, -6, 6,
-        6, -6, 6,
-        6, -6, -6,
-
-        -6, -6, -6,
-        -6, 6, -6,
-        -6, 6, 6,
-
-        -6, 6, 6,
-        -6, -6, 6,
-        -6, -6, -6,
-
-        6, -6, -6,
-        6, 6, -6,
-        6, 6, 6,
-
-        6, 6, 6,
-        6, -6, 6,
-        6, -6, -6,
-
-        6, 6, 6,
-        -6, 6, 6,
-        -6, -6, 6,
-
-        -6, -6, 6,
-        6, -6, 6,
-        6, 6, 6
+        -6,-6,6,
+        6,-6,6,
+        6,6,6
     };
+    GLfloat color_buffer_data [ ] = {
+        0,0,0,
+        0,0,0,
+        0.6,0.6,1,
 
-    GLfloat color_buffer_data[] = {
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        0.6,0.6,1,
+        1, 0.6, 0.8,
+        0,0,0,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1, 0.6, 0.8,
+        0.6,0.6,1,
+        1,1,1,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1,1,1,
+        1,1,1,
+        1, 0.6, 0.8,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        0.6,0.6,1,
+        0,0,0,
+        1,1,1,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1,1,1,
+        1,1,1,
+        0.6,0.6,1,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1, 0.6, 0.8,
+        0,0,0,
+        1,1,1,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1,1,1,
+        1,1,1,
+        1, 0.6, 0.8,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1,1,1,
+        1,1,1,
+        1,1,1,
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
+        1,1,1,
+        1,1,1,
+        1,1,1
 
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98, // Light blue
-        0.53, 0.81, 0.98  // Light blue
     };
-
-    background = create3DObject(GL_TRIANGLES, 30, vertex_buffer_data, color_buffer_data, GL_FILL);
+    background = create3DObject ( GL_TRIANGLES, 30, vertex_buffer_data, color_buffer_data, GL_FILL );
 }
-
 
 void renderscore(double x, double y, double z, int score)
 {
@@ -1443,30 +1473,30 @@ void levelup ( )
                 y_ordinate = rand ( ) % 2 - 6.0f;
                 if ( board[ i ][ j ] == 1) {
                     if ( ( i + j ) % 2 == 0 ) {
-                        cell = createCell ( 0.3f, 0.3f, -0.1f, Grey );
+                        cell = createCell ( 0.3f, 0.3f, -0.1f, Grey ,textureRepeat);
                         temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'r' );
                     }
                     else {
-                        cell = createCell ( 0.3f, 0.3f, -0.1f, White );
+                        cell = createCell ( 0.3f, 0.3f, -0.1f, White,textureRepeat );
                         temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f,  'g' );
                     }
                 }
                 else if ( board[ i ][ j ] == 3 ) {
                     if ( ( i + j ) % 2 == 0 ) {
-                        cell = createCell ( 0.3f, 0.3f, -0.1f,  Orange);
+                        cell = createCell ( 0.3f, 0.3f, -0.1f,  Orange,textureRepeat );
                         temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f,  'b' );
                     }
                     else {
-                        cell = createCell ( 0.3f, 0.3f, -0.1f,  Dorange );
+                        cell = createCell ( 0.3f, 0.3f, -0.1f,  Dorange ,textureRepeat );
                         temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f,  'b' );   
                     }
                 }
                 else if(board[i][j]==6){
-                    cell = createCell ( 0.3f, 0.3f, -0.1f,  Yellow);
+                    cell = createCell ( 0.3f, 0.3f, -0.1f,  Yellow,textureRepeat) ;
                     temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f,  'y' ); 
                 }
                 else {
-                    cell = createCell ( 0.3f, 0.3f, -0.1f,  Green);
+                    cell = createCell ( 0.3f, 0.3f, -0.1f,  Green,textureRepeat );
                     temp = GraphicalObject ( x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f,  'b' );   
                 }
                 temp.object = cell;
@@ -1599,41 +1629,41 @@ int checkBlock ( )
 
 void Viewer ( )
 {
- switch ( views ) {
- case 0:
- //Block
- perspective = 1;
- eye = glm::vec3 ( Block.x_ordinate - 1, 1, Block.z_ordinate - 1);
- target = glm::vec3 ( 5 , 0.1, 5 ) ;
- break;
- case 1:
- //Top
- perspective = 1;
- eye = glm::vec3 (Block.x_ordinate, 3, Block.z_ordinate);
- target = glm::vec3 ( Block.x_ordinate + 0.3, 0, Block.z_ordinate);
- break;
- case 2:
- //Follow
- perspective = 1;
- eye = glm::vec3 ( Block.x_ordinate - 0.6, Block.height + 1, Block.z_ordinate );
- target = glm::vec3 ( Block.x_ordinate + 0.6, 0.1, Block.z_ordinate + 0.6); 
- break;
- case 3:
- //Helicopter
- perspective = 0;
- eye = glm::vec3 ( 4*cos((float)camera_rotation_angle*M_PI/180.0f), 4, 4*sin((float)camera_rotation_angle*M_PI/180.0f) );
- target = glm::vec3 ( 0, 0, 0 );
- break;
- case 4:
- //Tower
- perspective = 0;
- eye = glm::vec3 ( 3*cos((float)camera_rotation_angle*M_PI/180.0f), 2, 3*sin((float)camera_rotation_angle*M_PI/180.0f) );
- target = glm::vec3 ( 0, 0, 0 );
- break;
- default:
- //Nothing
- break;
- }
+    switch ( views ) {
+            case 0:
+                //Block
+                perspective = 1;
+                eye = glm::vec3 ( Block.x_ordinate - 1, 1, Block.z_ordinate - 1);
+                target = glm::vec3 ( 5 , 0.1, 5 ) ;
+                break;
+            case 1:
+                //Top
+                perspective = 1;
+                eye = glm::vec3 (Block.x_ordinate, 3, Block.z_ordinate);
+                target = glm::vec3 ( Block.x_ordinate + 0.3, 0, Block.z_ordinate);
+                break;
+            case 2:
+                //Follow
+                perspective = 1;
+                eye = glm::vec3 ( Block.x_ordinate - 0.6, Block.height + 1, Block.z_ordinate );
+                target = glm::vec3 ( Block.x_ordinate + 0.6, 0.1, Block.z_ordinate + 0.6); 
+                break;
+            case 3:
+                //Helicopter
+                perspective = 0;
+                eye = glm::vec3 ( 4*cos((float)camera_rotation_angle*M_PI/180.0f), 4,  4*sin((float)camera_rotation_angle*M_PI/180.0f) );
+                target = glm::vec3 ( 0, 0, 0 );
+                break;
+            case 4:
+                //Tower
+                perspective = 0;
+                eye = glm::vec3 ( 3*cos((float)camera_rotation_angle*M_PI/180.0f), 2,  3*sin((float)camera_rotation_angle*M_PI/180.0f) );
+                target =  glm::vec3 ( 0, 0, 0 );
+                break;
+            default:
+                //Nothing
+                break;
+        }
 
 }
 void reset ( )
@@ -1665,8 +1695,56 @@ void reset ( )
 
 // Render the scene with openGL 
 // Edit this function according to your assignment 
+// Selects material to be shown on the screen
+void material(){
+	if(select_material == 0){
+		glMaterialfv(GL_FRONT, GL_AMBIENT, brass_ambient);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, brass_diffuse);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, brass_specular);
+  		glMaterialf(GL_FRONT, GL_SHININESS, brass_shininess);
+	}
+	if(select_material == 1){
+		glMaterialfv(GL_FRONT, GL_AMBIENT, emerald_ambient);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, emerald_diffuse);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, emerald_specular);
+  		glMaterialf(GL_FRONT, GL_SHININESS, emerald_shininess);
+	}
+	if(select_material == 2){
+		glMaterialfv(GL_FRONT, GL_AMBIENT, red_plastic_ambient);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, red_plastic_diffuse);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, red_plastic_specular);
+  		glMaterialf(GL_FRONT, GL_SHININESS, red_plastic_shininess);
+	}
+	if(select_material == 3){
+		glMaterialfv(GL_FRONT, GL_AMBIENT, slate_ambient);
+		glMaterialfv(GL_FRONT, GL_DIFFUSE, slate_diffuse);
+		glMaterialfv(GL_FRONT, GL_SPECULAR, slate_specular);
+  		glMaterialf(GL_FRONT, GL_SHININESS, slate_shininess);
+	}
+}
+
+
 void draw ( GLFWwindow* window, float x, float y, float w, float h )
 {
+
+
+    material();	// selecting material
+
+	GLfloat light_diffuse[] = {diffuse_intensity, diffuse_intensity, diffuse_intensity, 1.0}; 	// Varing Diffuse light intersity
+	
+	// Enabling Lights 
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+	glLightfv(GL_LIGHT1, GL_DIFFUSE, light_diffuse);
+	glLightfv(GL_LIGHT2, GL_DIFFUSE, light_diffuse);
+	glLightfv(GL_LIGHT3, GL_DIFFUSE, light_diffuse);
+	glEnable(GL_LIGHT0);
+	glEnable(GL_LIGHT1);
+	glEnable(GL_LIGHT2);
+	glEnable(GL_LIGHT3);
+
+
+    // Eabling Texture Environment
+	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_DECAL);
     int fbwidth, fbheight;
     glfwGetFramebufferSize ( window, &fbwidth, &fbheight );
     glViewport ( (int)(x*fbwidth), (int)(y*fbheight), (int)(w*fbwidth), (int)(h*fbheight) );
@@ -1803,36 +1881,70 @@ GLFWwindow* initGLFW ( int width, int height )
 
     return window;
 }
+void load_texture(){
+	// image = stbi_load("texture.jpg", &width, &height, &bpp, 3);
+	unsigned int texture;
+	glGenTextures(1, &texture);
+	GLubyte *texImage = makeTexImage((char*)"color.png");
+	if ( !texImage ) {
+		printf("\nError reading image \n");
+		return;
+	}
+	glBindTexture(GL_TEXTURE_2D, texture);
+	// set the texture wrapping/filtering options (on the currently bound texture object)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImageWidth, texImageWidth, 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage);
+	delete texImage;
+}
 
 // Initialize the OpenGL rendering properties 
 // Add all the models to be created here 
 void initGL(GLFWwindow* window, int width, int height) {
     // Enable lighting
-    light();
+    // light();
     // glEnable(GL_LIGHTING);
     // glEnable(GL_LIGHT0); // Enable light source 0
 
-    // Set light position
+    // // Set light position
     // GLfloat light_position[] = { 0.0, 10.0, 0.0, 1.0 }; // Positional light (above the scene)
     // glLightfv(GL_LIGHT0, GL_POSITION, light_position);
 
-    // Set light color (Blue)
+    // // Set light color (Blue)
     // GLfloat light_color[] = { 0.0, 0.0, 1.0, 1.0 }; // Blue light
     // glLightfv(GL_LIGHT0, GL_DIFFUSE, light_color);
 
-    // Set material properties
-    GLfloat material_ambient[] = { 0.3, 0.3, 0.3, 1.0 }; // Ambient color
-    GLfloat material_diffuse[] = { 0.8, 0.8, 0.8, 1.0 }; // Diffuse color
-    GLfloat material_specular[] = { 1.0, 1.0, 1.0, 1.0 }; // Specular color
-    GLfloat material_shininess[] = { 100.0 }; // Shininess factor
+    // // Set material properties
+    // GLfloat material_ambient[] = { 0.3, 0.3, 0.3, 1.0 }; // Ambient color
+    // GLfloat material_diffuse[] = { 0.8, 0.8, 0.8, 1.0 }; // Diffuse color
+    // GLfloat material_specular[] = { 1.0, 1.0, 1.0, 1.0 }; // Specular color
+    // GLfloat material_shininess[] = { 100.0 }; // Shininess factor
 
-    glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
-    glMaterialfv(GL_FRONT, GL_SHININESS, material_shininess);
+    // glMaterialfv(GL_FRONT, GL_AMBIENT, material_ambient);
+    // glMaterialfv(GL_FRONT, GL_DIFFUSE, material_diffuse);
+    // glMaterialfv(GL_FRONT, GL_SPECULAR, material_specular);
+    // glMaterialfv(GL_FRONT, GL_SHININESS, material_shininess);
 
     // Objects should be created before any other gl function and shaders 
     // Create the models
+    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_TEXTURE_2D);
+
+	glLightfv(GL_LIGHT0, GL_POSITION, front_left_light_position);
+	glLightfv(GL_LIGHT1, GL_POSITION, front_right_light_position);
+	glLightfv(GL_LIGHT1, GL_POSITION, back_left_light_position);
+	glLightfv(GL_LIGHT1, GL_POSITION, back_right_light_position);
+
+	glEnable(GL_LIGHTING);
+
+	glMatrixMode(GL_MODELVIEW);
+
+	// gluLookAt(0.0, 0.0, 5.0,  /* eye is at (0,0,5) */
+    // 0.0, 0.0, 0.0,      /* center is at (0,0,0) */
+    // 0.0, 1.0, 0.);      /* up is in positive Y direction */
 
     Background();
     // drawAxes();
@@ -1842,7 +1954,7 @@ void initGL(GLFWwindow* window, int width, int height) {
     y_ordinate = rand() % 2 + 6.0f;
     z_ordinate = 0.0f;
     GraphicalObject temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.6f, 0.3f);
-    temp.object = createCell(0.3f, 0.3f, 0.6f, Orange);
+    temp.object = createCell(0.3f, 0.3f, 0.6f, Blue,textureRepeat );
     Block = temp;
     Block.translator(Block.x_ordinate - 1, Block.y_ordinate, Block.z_ordinate - 1);
 
@@ -1859,26 +1971,26 @@ void initGL(GLFWwindow* window, int width, int height) {
             y_ordinate = rand() % 2 - 6.0f;
             if (board[i][j] == 1) {
                 if ((i + j) % 2 == 0) {
-                    cell = createCell(0.3f, 0.3f, -0.1f, Grey);
+                    cell = createCell(0.3f, 0.3f, -0.1f, Grey,textureRepeat );
                     temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'r');
                 }
                 else {
-                    cell = createCell(0.3f, 0.3f, -0.1f, White);
+                    cell = createCell(0.3f, 0.3f, -0.1f, White,textureRepeat );
                     temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'g');
                 }
             }
             else if (board[i][j] == 3) {
                 if ((i + j) % 2 == 0) {
-                    cell = createCell(0.3f, 0.3f, -0.1f, Orange);
+                    cell = createCell(0.3f, 0.3f, -0.1f, Orange,textureRepeat );
                     temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'b');
                 }
                 else {
-                    cell = createCell(0.3f, 0.3f, -0.1f, Dorange);
+                    cell = createCell(0.3f, 0.3f, -0.1f, Dorange,textureRepeat );
                     temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'b');
                 }
             }
             else {
-                cell = createCell(0.3f, 0.3f, -0.1f, Green);
+                cell = createCell(0.3f, 0.3f, -0.1f, Green,textureRepeat );
                 temp = GraphicalObject(x_ordinate, y_ordinate, z_ordinate, 0.1f, 0.3f, 'b');
             }
             temp.object = cell;
@@ -1892,7 +2004,7 @@ void initGL(GLFWwindow* window, int width, int height) {
     // Create and compile our GLSL program from the shaders
     programID = LoadShaders("Sample_GL.vert", "Sample_GL.frag");
     // Get a handle for our "MVP" uniform
-    // Matrices.MatrixID = glGetUniformLocation(programID, "MVP");
+    Matrices.MatrixID = glGetUniformLocation(programID, "MVP");
     reshapeWindow(window, width, height);
     // Background color of the scene
     glClearColor(0.3f, 0.3f, 0.3f, 0.0f); // R, G, B, A
@@ -1946,6 +2058,7 @@ int main(int argc, char** argv) {
     }
 
     // Initialize OpenGL settings and objects
+    load_texture();
     initGL(window, 1000, 1000);
 
     // Main rendering loop
